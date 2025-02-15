@@ -295,6 +295,7 @@ namespace MassTransit.SqlTransport.PostgreSql
 
                 var processMetricsSql = string.Format(SqlStatements.DbProcessMetricsSql, _context.Schema);
                 var purgeTopologySql = string.Format(SqlStatements.DbPurgeTopologySql, _context.Schema);
+                var purgeDanglingMessagesSql = string.Format(SqlStatements.DbPurgeDanglingMessagesSql, _context.Schema);
 
                 var random = new Random();
 
@@ -324,6 +325,10 @@ namespace MassTransit.SqlTransport.PostgreSql
                                     (x, t) => x.ExecuteScalarAsync<long?>(processMetricsSql,
                                         new { row_limit = _hostConfiguration.Settings.MaintenanceBatchSize }, t), timeoutToken.Token);
 
+                                await _context.Query(
+                                    (x, t) => x.ExecuteScalarAsync<long?>(purgeDanglingMessagesSql,
+                                        new { row_limit = _hostConfiguration.Settings.MaintenanceBatchSize }, t), timeoutToken.Token);
+
                                 if (lastCleanup == null)
                                     await _context.Query((x, t) => x.ExecuteScalarAsync<long?>(purgeTopologySql, t), timeoutToken.Token);
                             }
@@ -341,6 +346,11 @@ namespace MassTransit.SqlTransport.PostgreSql
                         await _hostConfiguration.Retry(async () =>
                         {
                             await _context.Query((x, t) => x.ExecuteScalarAsync<long?>(processMetricsSql, new
+                            {
+                                row_limit = _hostConfiguration.Settings.MaintenanceBatchSize,
+                            }, t), Stopping);
+
+                            await _context.Query((x, t) => x.ExecuteScalarAsync<long?>(purgeDanglingMessagesSql, new
                             {
                                 row_limit = _hostConfiguration.Settings.MaintenanceBatchSize,
                             }, t), Stopping);
